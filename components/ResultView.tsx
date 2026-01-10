@@ -1,19 +1,29 @@
 
-import React from 'react';
-import { WatchInfo } from '../types';
+import React, { useState } from 'react';
+import { WatchInfo, MarketingScenario } from '../types';
 
 interface ResultViewProps {
   originalImage: string;
   transformedImage: string;
   watch: WatchInfo;
   onReset: () => void;
+  onSelectScenario: (scenario: MarketingScenario) => void;
+  isTransmuting: boolean;
 }
 
-const ResultView: React.FC<ResultViewProps> = ({ originalImage, transformedImage, watch, onReset }) => {
+const ResultView: React.FC<ResultViewProps> = ({ 
+  originalImage, 
+  transformedImage, 
+  watch, 
+  onReset, 
+  onSelectScenario,
+  isTransmuting 
+}) => {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const handleShare = async () => {
     try {
       if (navigator.share) {
-        // Convert base64 to blob for sharing
         const res = await fetch(transformedImage);
         const blob = await res.blob();
         const file = new File([blob], `chrono-portal-${watch.modelName.replace(/\s+/g, '-')}.png`, { type: 'image/png' });
@@ -24,7 +34,6 @@ const ResultView: React.FC<ResultViewProps> = ({ originalImage, transformedImage
           files: [file],
         });
       } else {
-        // Fallback: Download
         const link = document.createElement('a');
         link.href = transformedImage;
         link.download = `ChronoPortal-${watch.modelName}.png`;
@@ -42,8 +51,18 @@ const ResultView: React.FC<ResultViewProps> = ({ originalImage, transformedImage
         <img 
           src={transformedImage} 
           alt="Time Portal Result" 
-          className="w-full h-full object-cover shadow-2xl"
+          className={`w-full h-full object-cover shadow-2xl transition-opacity duration-500 ${isTransmuting ? 'opacity-40 grayscale' : 'opacity-100'}`}
         />
+        
+        {isTransmuting && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+               <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+               <p className="text-[10px] mono text-blue-400 font-bold uppercase tracking-widest">Re-Transmuting...</p>
+            </div>
+          </div>
+        )}
+
         <div className="absolute top-4 right-4 flex gap-2">
           <button 
             onClick={handleShare}
@@ -66,6 +85,36 @@ const ResultView: React.FC<ResultViewProps> = ({ originalImage, transformedImage
           <p className="text-blue-500 mono text-lg font-bold">ERA: {watch.releaseYear}</p>
         </div>
 
+        {/* Marketing Scenarios Selector */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center">
+            <i className="fas fa-bullhorn mr-2 text-blue-500"></i> Historical Marketing Campaigns
+          </h3>
+          <div className="grid grid-cols-1 gap-2">
+            {watch.marketingScenarios.map((scenario) => (
+              <button
+                key={scenario.id}
+                onClick={() => {
+                  setSelectedId(scenario.id);
+                  onSelectScenario(scenario);
+                }}
+                disabled={isTransmuting}
+                className={`text-left p-4 rounded-xl border transition-all ${
+                  selectedId === scenario.id 
+                    ? 'bg-blue-600/20 border-blue-500 shadow-lg shadow-blue-500/10' 
+                    : 'glass border-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-bold text-white uppercase tracking-wider">{scenario.title}</span>
+                  {selectedId === scenario.id && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
+                </div>
+                <p className="text-[11px] text-gray-400 leading-tight">{scenario.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="glass p-5 rounded-2xl space-y-4">
           <div>
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 flex items-center">
@@ -73,17 +122,6 @@ const ResultView: React.FC<ResultViewProps> = ({ originalImage, transformedImage
             </h3>
             <p className="text-gray-200 leading-relaxed italic">
               "{watch.eraContext}"
-            </p>
-          </div>
-          
-          <div className="h-px bg-white/10"></div>
-
-          <div>
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 flex items-center">
-              <i className="fas fa-tshirt mr-2 text-blue-500"></i> Period Attire
-            </h3>
-            <p className="text-gray-200 leading-relaxed">
-              {watch.clothingDescription}
             </p>
           </div>
         </div>
@@ -95,7 +133,6 @@ const ResultView: React.FC<ResultViewProps> = ({ originalImage, transformedImage
           </p>
         </div>
 
-        {/* Verification Sources from Search Grounding */}
         {watch.sources && watch.sources.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center">

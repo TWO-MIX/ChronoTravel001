@@ -4,6 +4,14 @@ export interface Source {
   url: string;
 }
 
+export interface MarketingScenario {
+  id: string;
+  title: string;
+  description: string;
+  environmentPrompt: string;
+  clothingPrompt: string;
+}
+
 export interface WatchInfo {
   modelName: string;
   releaseYear: string;
@@ -11,6 +19,7 @@ export interface WatchInfo {
   clothingDescription: string;
   environmentDescription: string;
   historicalFunFact: string;
+  marketingScenarios: MarketingScenario[];
   sources?: Source[];
 }
 
@@ -20,6 +29,7 @@ export enum AppState {
   IDENTIFYING = 'IDENTIFYING',
   TRANSFORMING = 'TRANSFORMING',
   RESULT = 'RESULT',
+  LIVE = 'LIVE',
   ERROR = 'ERROR'
 }
 
