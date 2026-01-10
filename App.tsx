@@ -5,6 +5,7 @@ import Camera from './components/Camera';
 import ResultView from './components/ResultView';
 import LiveAR from './components/LiveAR';
 import InvestorView from './components/InvestorView';
+import VintageAdsView from './components/VintageAdsView';
 import { identifyWatch, transformEra } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -26,10 +27,11 @@ const App: React.FC = () => {
   const [userPrefs, setUserPrefs] = useState<UserPreferences>({
     gender: '',
     age: '',
-    country: ''
+    country: '',
+    customYear: ''
   });
 
-  const hasActivePersona = Boolean(userPrefs.gender || userPrefs.age || userPrefs.country);
+  const hasActivePersona = Boolean(userPrefs.gender || userPrefs.age || userPrefs.country || userPrefs.customYear);
 
   useEffect(() => {
     setCurrentUrl(window.location.href);
@@ -198,6 +200,17 @@ const App: React.FC = () => {
                   className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
                 />
               </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Temporal Override (Year)</label>
+                <input 
+                  type="text"
+                  placeholder="e.g. 1920, 2077 (Default: Watch Era)"
+                  value={userPrefs.customYear || ''}
+                  onChange={(e) => handlePrefChange('customYear', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
+                />
+              </div>
             </div>
 
             <button 
@@ -243,7 +256,7 @@ const App: React.FC = () => {
                   <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full"></div>
                   <p className="text-gray-400 text-sm mono font-medium max-w-[200px] mx-auto">
                     {state === AppState.IDENTIFYING ? 'Cross-referencing global horological datasets...' : 
-                     `Projecting ${watchInfo?.releaseYear || 'temporal'} environment layers...`
+                     `Projecting ${userPrefs.customYear || watchInfo?.releaseYear || 'temporal'} environment layers...`
                     }
                   </p>
                 </div>
@@ -259,12 +272,18 @@ const App: React.FC = () => {
               onReset={reset}
               onSelectScenario={handleSelectScenario}
               onShowInvestor={() => setState(AppState.INVESTOR)}
+              onShowAds={() => setState(AppState.ADS)}
               isTransmuting={isReTransmuting}
               userPrefs={userPrefs}
             />
           </div>
         ) : state === AppState.INVESTOR && watchInfo ? (
            <InvestorView 
+             watch={watchInfo}
+             onClose={() => setState(AppState.RESULT)}
+           />
+        ) : state === AppState.ADS && watchInfo ? (
+           <VintageAdsView
              watch={watchInfo}
              onClose={() => setState(AppState.RESULT)}
            />

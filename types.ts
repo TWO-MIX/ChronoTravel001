@@ -16,6 +16,7 @@ export interface UserPreferences {
   gender: string;
   age: string;
   country: string;
+  customYear?: string;
 }
 
 export interface MarketAnalysis {
@@ -26,6 +27,15 @@ export interface MarketAnalysis {
   marketSentiment: 'Bullish' | 'Bearish' | 'Stable';
   investmentRating: string; // e.g., "A", "B", "C"
   insight: string;
+}
+
+export interface VintageAd {
+  id: string;
+  headline: string;
+  description: string;
+  year: string;
+  visualPrompt: string; // Internal use for generation
+  imageUrl?: string; // Populated after generation
 }
 
 export interface WatchInfo {
@@ -49,6 +59,7 @@ export enum AppState {
   GENERATING_WORLD = 'GENERATING_WORLD',
   IMMERSIVE = 'IMMERSIVE',
   INVESTOR = 'INVESTOR',
+  ADS = 'ADS',
   ERROR = 'ERROR'
 }
 

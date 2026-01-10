@@ -9,6 +9,7 @@ interface ResultViewProps {
   onReset: () => void;
   onSelectScenario: (scenario: MarketingScenario) => void;
   onShowInvestor: () => void;
+  onShowAds: () => void;
   isTransmuting: boolean;
   userPrefs: UserPreferences;
 }
@@ -20,6 +21,7 @@ const ResultView: React.FC<ResultViewProps> = ({
   onReset, 
   onSelectScenario,
   onShowInvestor,
+  onShowAds,
   isTransmuting,
   userPrefs
 }) => {
@@ -104,14 +106,22 @@ const ResultView: React.FC<ResultViewProps> = ({
           <p className="text-blue-500 mono text-lg font-bold">ERA: {watch.releaseYear}</p>
         </div>
 
-        {/* Investor Protocol Button - High Visibility */}
-        <div className="grid grid-cols-1 gap-3">
+        {/* Feature Buttons */}
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={onShowInvestor}
-            className="w-full py-4 bg-emerald-500 text-black font-bold rounded-2xl hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-400/50"
+            className="w-full py-4 bg-emerald-500 text-black font-bold rounded-2xl hover:bg-emerald-400 transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-400/50"
           >
             <i className="fas fa-chart-line text-lg"></i>
-            <span className="uppercase tracking-widest text-sm">Investor Protocol</span>
+            <span className="uppercase tracking-widest text-[10px]">Investor Protocol</span>
+          </button>
+          
+          <button
+            onClick={onShowAds}
+            className="w-full py-4 bg-amber-600/20 text-amber-500 border border-amber-500/50 font-bold rounded-2xl hover:bg-amber-600/30 transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-amber-900/20"
+          >
+            <i className="fas fa-newspaper text-lg"></i>
+            <span className="uppercase tracking-widest text-[10px]">Find Vintage Ads</span>
           </button>
         </div>
 
