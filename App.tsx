@@ -128,8 +128,8 @@ const App: React.FC = () => {
             <i className="fas fa-hourglass-half text-white text-sm"></i>
           </div>
           <div>
-            <h1 className="text-sm font-bold tracking-tighter uppercase">ChronoPortal</h1>
-            <p className="text-[10px] text-blue-400 mono leading-none font-bold">V-AR ENGINE 1.6</p>
+            <h1 className="text-sm font-bold tracking-tight uppercase font-logo text-blue-400">ChronoPortal</h1>
+            <p className="text-[10px] text-gray-400 mono leading-none font-bold">BUILD: CHRONOPORTALSUBMIT</p>
           </div>
         </div>
         <div className="flex items-center gap-3 mt-2">

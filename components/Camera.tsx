@@ -71,7 +71,7 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
           </div>
         </div>
         
-        <h2 className="text-3xl font-bold mb-3 text-white tracking-tighter">ChronoPortal</h2>
+        <h2 className="text-4xl mb-3 text-white tracking-wider font-logo">ChronoPortal</h2>
         <p className="text-gray-400 mb-10 max-w-xs leading-relaxed text-sm">
           Activate temporal sensors to identify artifacts and open a window to the past.
         </p>
