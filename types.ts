@@ -12,6 +12,22 @@ export interface MarketingScenario {
   clothingPrompt: string;
 }
 
+export interface UserPreferences {
+  gender: string;
+  age: string;
+  country: string;
+}
+
+export interface MarketAnalysis {
+  currency: string;
+  currentMinPrice: number;
+  currentMaxPrice: number;
+  priceHistory: { year: string; averagePrice: number }[];
+  marketSentiment: 'Bullish' | 'Bearish' | 'Stable';
+  investmentRating: string; // e.g., "A", "B", "C"
+  insight: string;
+}
+
 export interface WatchInfo {
   modelName: string;
   releaseYear: string;
@@ -30,6 +46,9 @@ export enum AppState {
   TRANSFORMING = 'TRANSFORMING',
   RESULT = 'RESULT',
   LIVE = 'LIVE',
+  GENERATING_WORLD = 'GENERATING_WORLD',
+  IMMERSIVE = 'IMMERSIVE',
+  INVESTOR = 'INVESTOR',
   ERROR = 'ERROR'
 }
 

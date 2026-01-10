@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { WatchInfo, MarketingScenario } from '../types';
+import { WatchInfo, MarketingScenario, UserPreferences } from '../types';
 
 interface ResultViewProps {
   originalImage: string;
@@ -8,7 +8,9 @@ interface ResultViewProps {
   watch: WatchInfo;
   onReset: () => void;
   onSelectScenario: (scenario: MarketingScenario) => void;
+  onShowInvestor: () => void;
   isTransmuting: boolean;
+  userPrefs: UserPreferences;
 }
 
 const ResultView: React.FC<ResultViewProps> = ({ 
@@ -17,9 +19,18 @@ const ResultView: React.FC<ResultViewProps> = ({
   watch, 
   onReset, 
   onSelectScenario,
-  isTransmuting 
+  onShowInvestor,
+  isTransmuting,
+  userPrefs
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  
+  const hasPersona = userPrefs.gender || userPrefs.age || userPrefs.country;
+  const personaString = [
+    userPrefs.age ? `${userPrefs.age}yo` : '', 
+    userPrefs.gender || '', 
+    userPrefs.country ? `from ${userPrefs.country}` : ''
+  ].filter(Boolean).join(' ');
 
   const handleShare = async () => {
     try {
@@ -71,8 +82,16 @@ const ResultView: React.FC<ResultViewProps> = ({
             <i className="fas fa-share-alt"></i>
           </button>
         </div>
-        <div className="absolute bottom-4 left-4 glass px-3 py-1 rounded-full text-xs mono text-blue-400 font-bold uppercase tracking-widest">
-          Reality Synchronized
+        
+        <div className="absolute bottom-4 left-4 flex gap-2">
+            <div className="glass px-3 py-1 rounded-full text-xs mono text-blue-400 font-bold uppercase tracking-widest">
+            Reality Synchronized
+            </div>
+            {hasPersona && (
+                <div className="glass px-3 py-1 rounded-full text-xs mono text-purple-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                    <i className="fas fa-user-circle"></i> {personaString}
+                </div>
+            )}
         </div>
       </div>
 
@@ -83,6 +102,17 @@ const ResultView: React.FC<ResultViewProps> = ({
             {watch.modelName}
           </h2>
           <p className="text-blue-500 mono text-lg font-bold">ERA: {watch.releaseYear}</p>
+        </div>
+
+        {/* Investor Protocol Button - High Visibility */}
+        <div className="grid grid-cols-1 gap-3">
+          <button
+            onClick={onShowInvestor}
+            className="w-full py-4 bg-emerald-500 text-black font-bold rounded-2xl hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-400/50"
+          >
+            <i className="fas fa-chart-line text-lg"></i>
+            <span className="uppercase tracking-widest text-sm">Investor Protocol</span>
+          </button>
         </div>
 
         {/* Marketing Scenarios Selector */}

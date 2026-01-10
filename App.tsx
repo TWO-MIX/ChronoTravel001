@@ -1,9 +1,10 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, WatchInfo, MarketingScenario } from './types';
+import { AppState, WatchInfo, MarketingScenario, UserPreferences } from './types';
 import Camera from './components/Camera';
 import ResultView from './components/ResultView';
 import LiveAR from './components/LiveAR';
+import InvestorView from './components/InvestorView';
 import { identifyWatch, transformEra } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -14,11 +15,21 @@ const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPulsing, setIsPulsing] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [currentUrl, setCurrentUrl] = useState('');
   const [isCompatible, setIsCompatible] = useState(true);
   const [envError, setEnvError] = useState<string | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<MarketingScenario | undefined>(undefined);
   const [isReTransmuting, setIsReTransmuting] = useState(false);
+
+  // User Preferences State
+  const [userPrefs, setUserPrefs] = useState<UserPreferences>({
+    gender: '',
+    age: '',
+    country: ''
+  });
+
+  const hasActivePersona = Boolean(userPrefs.gender || userPrefs.age || userPrefs.country);
 
   useEffect(() => {
     setCurrentUrl(window.location.href);
@@ -50,7 +61,7 @@ const App: React.FC = () => {
       setWatchInfo(info);
       
       setState(AppState.TRANSFORMING);
-      const result = await transformEra(base64, info);
+      const result = await transformEra(base64, info, userPrefs);
       setTransformedImage(result);
       
       setState(AppState.RESULT);
@@ -59,7 +70,7 @@ const App: React.FC = () => {
       setErrorMessage(err.message || "The time portal encountered a paradox. Try scanning again.");
       setState(AppState.ERROR);
     }
-  }, []);
+  }, [userPrefs]);
 
   const handleSelectScenario = async (scenario: MarketingScenario) => {
     if (!originalImage || !watchInfo || isReTransmuting) return;
@@ -69,7 +80,7 @@ const App: React.FC = () => {
     
     try {
       const base64 = originalImage.split(',')[1];
-      const result = await transformEra(base64, watchInfo, scenario);
+      const result = await transformEra(base64, watchInfo, userPrefs, scenario);
       setTransformedImage(result);
     } catch (err) {
       console.error("Scenario transformation failed", err);
@@ -87,8 +98,8 @@ const App: React.FC = () => {
     setSelectedScenario(undefined);
   };
 
-  const enterLiveMode = () => {
-    setState(AppState.LIVE);
+  const handlePrefChange = (key: keyof UserPreferences, value: string) => {
+    setUserPrefs(prev => ({ ...prev, [key]: value }));
   };
 
   if (!isCompatible) {
@@ -121,10 +132,14 @@ const App: React.FC = () => {
         </div>
         <div className="flex items-center gap-3 mt-2">
             <button 
-              onClick={() => setShowQR(!showQR)}
-              className="text-[10px] mono text-gray-400 border border-white/10 px-2 py-1 rounded flex items-center gap-1 hover:bg-white/5 transition-colors"
+              onClick={() => setShowSettings(true)}
+              disabled={state !== AppState.IDLE && state !== AppState.RESULT}
+              className={`relative text-[10px] mono text-gray-400 border border-white/10 px-3 py-1.5 rounded flex items-center gap-1 hover:bg-white/5 transition-colors`}
             >
-              <i className="fas fa-qrcode"></i> Sync
+              <i className="fas fa-user-cog"></i> Persona
+              {hasActivePersona && (
+                <div className="absolute top-0 right-0 w-2 h-2 bg-purple-500 rounded-full -mr-1 -mt-1 border border-black shadow-sm"></div>
+              )}
             </button>
             <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -133,26 +148,63 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* QR Overlay */}
-      {showQR && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center p-8 bg-black/90 backdrop-blur-md">
-          <div className="glass p-8 rounded-3xl flex flex-col items-center gap-6 max-w-xs w-full border-blue-500/30">
-            <div className="text-center">
-              <h3 className="text-lg font-bold uppercase tracking-widest text-white mb-2">Sync to Phone</h3>
-              <p className="text-xs text-gray-400 mono leading-relaxed">Scan to unlock Live AR features and microphone interaction.</p>
+      {/* Settings Modal - Increased Z-Index and contrast */}
+      {showSettings && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-xl">
+          <div className="glass p-6 rounded-3xl w-full max-w-sm border-blue-500/30 shadow-2xl shadow-blue-900/20">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold uppercase tracking-widest text-white">Persona Protocol</h3>
+              <button 
+                onClick={() => setShowSettings(false)}
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-white/10"
+              >
+                <i className="fas fa-times"></i>
+              </button>
             </div>
-            <div className="bg-white p-4 rounded-xl">
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentUrl)}`} 
-                alt="QR Code" 
-                className="w-40 h-40"
-              />
+            
+            <div className="space-y-4 mb-8">
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Identity (Gender)</label>
+                <select 
+                  value={userPrefs.gender}
+                  onChange={(e) => handlePrefChange('gender', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none appearance-none"
+                >
+                  <option value="">Any / Unspecified</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Chronological Age</label>
+                <input 
+                  type="number"
+                  placeholder="e.g. 28"
+                  value={userPrefs.age}
+                  onChange={(e) => handlePrefChange('age', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Geographic Origin</label>
+                <input 
+                  type="text"
+                  placeholder="e.g. Japan, New York, London"
+                  value={userPrefs.country}
+                  onChange={(e) => handlePrefChange('country', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
+                />
+              </div>
             </div>
+
             <button 
-              onClick={() => setShowQR(false)}
-              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-sm uppercase tracking-widest"
+              onClick={() => setShowSettings(false)}
+              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-transform"
             >
-              Close
+              Confirm Parameters
             </button>
           </div>
         </div>
@@ -170,16 +222,18 @@ const App: React.FC = () => {
           <div className="h-full relative">
             <Camera 
               onCapture={handleCapture} 
-              isProcessing={state === AppState.IDENTIFYING || state === AppState.TRANSFORMING} 
+              isProcessing={state !== AppState.IDLE} 
             />
             
-            {(state === AppState.IDENTIFYING || state === AppState.TRANSFORMING) && (
+            {state !== AppState.IDLE && (
               <div className="absolute inset-0 bg-black/70 backdrop-blur-xl z-30 flex flex-col items-center justify-center p-10 text-center">
                 <div className="relative mb-8">
                     <div className="w-20 h-20 border-4 border-blue-500/20 rounded-full"></div>
                     <div className="absolute inset-0 w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <i className={`fas ${state === AppState.IDENTIFYING ? 'fa-fingerprint' : 'fa-magic'} text-blue-500 text-xl animate-pulse`}></i>
+                        <i className={`fas ${
+                            state === AppState.IDENTIFYING ? 'fa-fingerprint' : 'fa-magic'
+                        } text-blue-500 text-xl animate-pulse`}></i>
                     </div>
                 </div>
                 <div className="space-y-3">
@@ -188,9 +242,9 @@ const App: React.FC = () => {
                   </h3>
                   <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full"></div>
                   <p className="text-gray-400 text-sm mono font-medium max-w-[200px] mx-auto">
-                    {state === AppState.IDENTIFYING 
-                      ? 'Cross-referencing global horological datasets...' 
-                      : `Projecting ${watchInfo?.releaseYear || 'temporal'} environment layers...`}
+                    {state === AppState.IDENTIFYING ? 'Cross-referencing global horological datasets...' : 
+                     `Projecting ${watchInfo?.releaseYear || 'temporal'} environment layers...`
+                    }
                   </p>
                 </div>
               </div>
@@ -204,9 +258,16 @@ const App: React.FC = () => {
               watch={watchInfo}
               onReset={reset}
               onSelectScenario={handleSelectScenario}
+              onShowInvestor={() => setState(AppState.INVESTOR)}
               isTransmuting={isReTransmuting}
+              userPrefs={userPrefs}
             />
           </div>
+        ) : state === AppState.INVESTOR && watchInfo ? (
+           <InvestorView 
+             watch={watchInfo}
+             onClose={() => setState(AppState.RESULT)}
+           />
         ) : state === AppState.ERROR ? (
           <div className="h-full flex flex-col items-center justify-center p-10 text-center bg-zinc-950">
             <div className="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
