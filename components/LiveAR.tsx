@@ -2,7 +2,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { WatchInfo, MarketingScenario } from '../types';
 import { connectTemporalGuide, decodeBase64, decodeAudioData, encodePCM } from '../services/liveService';
-import { transformEra } from '../services/geminiService';
 
 interface LiveARProps {
   watch: WatchInfo;
@@ -16,14 +15,12 @@ const LiveAR: React.FC<LiveARProps> = ({ watch, selectedScenario, onExit }) => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const nextStartTimeRef = useRef(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const [transformedImg, setTransformedImg] = useState<string | null>(null);
   const [transcription, setTranscription] = useState<string>('');
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isAudioActive, setIsAudioActive] = useState(false);
 
   useEffect(() => {
     let session: any = null;
     let stream: MediaStream | null = null;
-    let visualTimer: any = null;
     let frameInterval: any = null;
 
     const initLive = async () => {
@@ -42,7 +39,13 @@ const LiveAR: React.FC<LiveARProps> = ({ watch, selectedScenario, onExit }) => {
         : watch.eraContext;
 
       session = await connectTemporalGuide(systemContext, {
-        onTranscription: (text, isUser) => setTranscription(`${isUser ? 'You: ' : 'Guide: '}${text}`),
+        onTranscription: (text, isUser) => {
+          setTranscription(`${isUser ? 'You: ' : 'Guide: '}${text}`);
+          setIsAudioActive(!isUser);
+          if (!isUser) {
+             setTimeout(() => setIsAudioActive(false), 3000); // Visual falloff
+          }
+        },
         onAudioChunk: async (base64) => {
           if (!audioCtxRef.current) return;
           const ctx = audioCtxRef.current;
@@ -55,11 +58,13 @@ const LiveAR: React.FC<LiveARProps> = ({ watch, selectedScenario, onExit }) => {
           nextStartTimeRef.current += buffer.duration;
           sourcesRef.current.add(source);
           source.onended = () => sourcesRef.current.delete(source);
+          setIsAudioActive(true);
         },
         onInterrupted: () => {
           sourcesRef.current.forEach(s => s.stop());
           sourcesRef.current.clear();
           nextStartTimeRef.current = 0;
+          setIsAudioActive(false);
         }
       });
 
@@ -92,36 +97,12 @@ const LiveAR: React.FC<LiveARProps> = ({ watch, selectedScenario, onExit }) => {
           }, 'image/jpeg', 0.5);
         }
       }, 1500);
-
-      const performVisualTransmute = async () => {
-        if (!videoRef.current || !canvasRef.current) return;
-        setIsSyncing(true);
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          canvas.width = 640;
-          canvas.height = 640;
-          ctx.drawImage(videoRef.current, 0, 0, 640, 640);
-          const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-          try {
-            const transformed = await transformEra(base64, watch, selectedScenario);
-            setTransformedImg(transformed);
-          } catch (e) {
-            console.error('Visual sync error', e);
-          }
-        }
-        setIsSyncing(false);
-      };
-
-      performVisualTransmute();
-      visualTimer = setInterval(performVisualTransmute, 5000);
     };
 
     initLive();
 
     return () => {
       stream?.getTracks().forEach(t => t.stop());
-      clearInterval(visualTimer);
       clearInterval(frameInterval);
       if (session) session.close();
       audioCtxRef.current?.close();
@@ -131,21 +112,19 @@ const LiveAR: React.FC<LiveARProps> = ({ watch, selectedScenario, onExit }) => {
   return (
     <div className="absolute inset-0 bg-black flex flex-col z-50">
       <div className="relative flex-1 overflow-hidden bg-zinc-900">
-        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-50" />
+        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-80" />
         
-        {transformedImg && (
-          <div className="absolute inset-0 transition-opacity duration-1000">
-             <img src={transformedImg} className="w-full h-full object-cover animate-in fade-in duration-700" alt="AR Portal" />
-          </div>
-        )}
-
+        {/* Audio Reactive Overlay */}
         <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6">
            <div className="flex justify-between items-start">
-              <div className="glass px-4 py-2 rounded-xl border-l-4 border-blue-500">
-                <p className="text-[10px] mono text-blue-400 font-bold uppercase tracking-widest">
+              <div className={`glass px-4 py-2 rounded-xl border-l-4 transition-colors duration-300 ${isAudioActive ? 'border-green-400 bg-green-500/10' : 'border-blue-500'}`}>
+                <p className="text-[10px] mono font-bold uppercase tracking-widest text-white/70">
                   {selectedScenario ? selectedScenario.title : 'Temporal Link'}
                 </p>
-                <p className="text-xs font-bold text-white">{watch.releaseYear} Active</p>
+                <div className="flex items-center gap-2">
+                   {isAudioActive && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
+                   <p className="text-xs font-bold text-white">{watch.releaseYear} Audio Stream</p>
+                </div>
               </div>
               <button 
                 onClick={onExit} 
@@ -157,34 +136,32 @@ const LiveAR: React.FC<LiveARProps> = ({ watch, selectedScenario, onExit }) => {
 
            <div className="space-y-4">
               {transcription && (
-                <div className="glass p-3 rounded-xl max-w-[80%] animate-in slide-in-from-bottom-2">
-                  <p className="text-[10px] mono text-blue-500 uppercase font-bold mb-1">Live Feed</p>
-                  <p className="text-sm text-white leading-tight font-medium italic">"{transcription}"</p>
+                <div className="glass p-4 rounded-2xl max-w-[90%] animate-in slide-in-from-bottom-2 border-l-2 border-blue-400">
+                  <p className="text-[10px] mono text-blue-400 uppercase font-bold mb-1">
+                    {transcription.startsWith('You:') ? 'Input Signal' : 'Temporal Response'}
+                  </p>
+                  <p className="text-sm text-white leading-relaxed font-medium">"{transcription.replace(/^(You: |Guide: )/, '')}"</p>
                 </div>
               )}
 
-              <div className="flex items-center gap-4">
-                 <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                    {isSyncing && <div className="h-full bg-blue-500 animate-[loading_2s_ease-in-out_infinite]"></div>}
-                 </div>
-                 <div className="flex gap-1">
-                    {[1,2,3,4].map(i => (
-                      <div key={i} className="w-1 h-3 bg-blue-500 animate-pulse" style={{ animationDelay: `${i*0.1}s` }}></div>
-                    ))}
-                 </div>
+              {/* Audio Visualizer Placeholder */}
+              <div className="flex items-center gap-1 h-8 justify-center opacity-70">
+                 {[1,2,3,4,5,6,7,8].map(i => (
+                    <div 
+                      key={i} 
+                      className={`w-1 bg-white rounded-full transition-all duration-75 ${isAudioActive ? 'animate-pulse bg-green-400' : ''}`}
+                      style={{ 
+                        height: isAudioActive ? `${Math.random() * 100}%` : '20%',
+                        animationDelay: `${i * 0.05}s`
+                      }} 
+                    ></div>
+                 ))}
               </div>
            </div>
         </div>
       </div>
 
       <canvas ref={canvasRef} className="hidden" />
-      
-      <style>{`
-        @keyframes loading {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-      `}</style>
     </div>
   );
 };

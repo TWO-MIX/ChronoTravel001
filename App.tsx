@@ -198,14 +198,6 @@ const App: React.FC = () => {
           </div>
         ) : state === AppState.RESULT && watchInfo && transformedImage && originalImage ? (
           <div className="h-full relative overflow-y-auto">
-            <div className="sticky top-0 z-10 glass px-4 py-3 flex justify-center">
-               <button 
-                  onClick={enterLiveMode}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 rounded-full shadow-lg shadow-blue-500/20 flex items-center gap-2 animate-bounce"
-               >
-                 <i className="fas fa-play text-[10px]"></i> Launch Live AR Mode
-               </button>
-            </div>
             <ResultView 
               originalImage={originalImage}
               transformedImage={transformedImage}

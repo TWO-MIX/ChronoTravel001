@@ -7,7 +7,8 @@ const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export const identifyWatch = async (base64Image: string): Promise<WatchInfo> => {
   const ai = getAI();
-  const model = 'gemini-3-pro-preview';
+  // Switching to Flash for faster inference (lower latency) while maintaining good accuracy with search grounding
+  const model = 'gemini-3-flash-preview';
   
   const response = await ai.models.generateContent({
     model,
