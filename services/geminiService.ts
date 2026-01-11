@@ -3,19 +3,76 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { WatchInfo, Source, MarketingScenario, UserPreferences, MarketAnalysis, VintageAd } from "../types";
 
 // --- API PRESETS ---
-// Model for analyzing images and text (Identification)
-// Note: Nano Banana (gemini-2.5-flash-image) does not support tools/search, so we use Gemini 3 Flash for identification.
+// Using Flash models to avoid mandatory UI key-selection requirements
 const IDENTIFICATION_MODEL = 'gemini-3-flash-preview'; 
-
-// Model for generating visual results (Nano Banana)
-// As requested, this is set to 'gemini-2.5-flash-image' for image transformation and panorama generation.
+const RESEARCH_MODEL = 'gemini-3-flash-preview'; 
 const GENERATION_MODEL = 'gemini-2.5-flash-image'; 
 
-// Note: Using a fresh instance for calls as per guidelines
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+/**
+ * Programmatically apply branding watermark to generated images
+ */
+const applyWatermark = async (base64Data: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(base64Data);
 
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
+      
+      // Configure watermark text
+      const fontSize = Math.max(14, Math.floor(img.width * 0.03));
+      ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+      const text = "#chronoportalpowerbygemini";
+      const metrics = ctx.measureText(text);
+      
+      // Position: bottom right
+      const padding = 20;
+      const x = canvas.width - metrics.width - padding;
+      const y = canvas.height - padding;
+
+      // Semi-transparent background for legibility
+      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+      if (ctx.roundRect) {
+        ctx.roundRect(x - 10, y - fontSize - 5, metrics.width + 20, fontSize + 15, 8);
+      } else {
+        ctx.fillRect(x - 10, y - fontSize - 5, metrics.width + 20, fontSize + 15);
+      }
+      ctx.fill();
+      
+      // Draw text
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.fillText(text, x, y);
+      
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(base64Data);
+    img.src = base64Data;
+  });
+};
+
+const HOROLOGICAL_WHITELIST = [
+  "fratellowatches.com",
+  "hodinkee.com",
+  "chronomaddox.com",
+  "omegaforums.net",
+  "rolexforums.com",
+  "seikoworldtime.com",
+  "vintagerolexforum.com",
+  "plus9time.com",
+  "speedmaster101.com",
+  "watchuseek.com",
+  "calibercorner.com"
+];
+
+// Initialize Gemini client strictly as per guidelines
 export const identifyWatch = async (base64Image: string): Promise<WatchInfo> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const response = await ai.models.generateContent({
     model: IDENTIFICATION_MODEL,
@@ -28,27 +85,13 @@ export const identifyWatch = async (base64Image: string): Promise<WatchInfo> => 
           },
         },
         {
-          text: `Act as a Master Horologist Agent (Visual ID Protocol). Your goal is to identify this watch with forensic precision.
-
-          EXECUTION PLAN:
-          1. [VISUAL SCAN] Transcribe every legible letter/number on the dial and bezel. Note distinct features (hands shape, indices, sub-dial layout).
-          2. [SEARCH QUERY] Use the Google Search tool to cross-reference these visual markers. Search for specific dial variations to find the exact Reference Number (Ref. No).
-          3. [VERIFICATION] Compare the search results visually with the input image to confirm the match.
-          4. [OUTPUT] Compile the final data into the required JSON format.
-
-          Output Constraints:
-          - modelName: Must include Brand + Model + (Optional) Nickname/Reference. Example: "Omega Speedmaster Professional 105.012 'Moonwatch'".
-          - releaseYear: The specific year this reference was introduced.
-          - eraContext: 1-2 sentences capturing the zeitgeist of that year.
-          - clothingDescription: Historically accurate fashion for a wearer of this specific watch in that year.
-          - environmentDescription: A setting that fits the watch's purpose (e.g. Race track for chronographs, Dive boat for divers, Boardroom for dress watches).
-          - historicalFunFact: A specific, non-generic fact about this model's history.
-          - marketingScenarios: An array of 3 possible historical marketing scenarios for this specific watch based on its actual history or category (e.g., Space for Speedmasters, Diving for Submariners, Office for Databanks, Aviation for Navitimers). Each should have:
-              - id: unique string
-              - title: short catchy name (e.g. "Lunar Landing", "Deep Sea Exploration", "80s Wall Street")
-              - description: short historical blurb about how it was marketed
-              - environmentPrompt: specific description of the background for AI image generation
-              - clothingPrompt: specific description of what the user's arm/sleeve should look like`
+          text: `Act as a Lead Forensic Horologist and Authentication Agent. 
+          
+          VIRTUAL MCP PROTOCOL:
+          1. [VISUAL ANALYSIS]: Identify the brand, model, and potential reference numbers. For Seiko watches the model number is usually located on the bottom part of the dial so zoom in on that part to identify the model.
+          2. [TARGETED SEARCH]: Search for identified model technical specifications, prioritizing: ${HOROLOGICAL_WHITELIST.join(", ")}.
+          3. [DATA MATCHING]: Compare features against verified entries.
+          4. [VERIFICATION LOG]: Output a structured forensic audit.`
         },
       ],
     },
@@ -77,9 +120,22 @@ export const identifyWatch = async (base64Image: string): Promise<WatchInfo> => 
               },
               required: ["id", "title", "description", "environmentPrompt", "clothingPrompt"]
             }
+          },
+          forensicVerification: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                feature: { type: Type.STRING },
+                observation: { type: Type.STRING },
+                status: { type: Type.STRING, enum: ["Confirmed", "Discrepancy", "Variation"] },
+                details: { type: Type.STRING }
+              },
+              required: ["feature", "observation", "status", "details"]
+            }
           }
         },
-        required: ["modelName", "releaseYear", "eraContext", "clothingDescription", "environmentDescription", "historicalFunFact", "marketingScenarios"]
+        required: ["modelName", "releaseYear", "eraContext", "clothingDescription", "environmentDescription", "historicalFunFact", "marketingScenarios", "forensicVerification"]
       }
     },
   });
@@ -92,56 +148,37 @@ export const identifyWatch = async (base64Image: string): Promise<WatchInfo> => 
     groundingChunks.forEach((chunk: any) => {
       if (chunk.web && chunk.web.uri) {
         sources.push({
-          title: chunk.web.title || 'View Reference',
+          title: chunk.web.title || 'View Database Entry',
           url: chunk.web.uri
         });
       }
     });
   }
 
-  const uniqueSources = sources.reduce((acc: Source[], current) => {
-    const x = acc.find(item => item.url === current.url);
-    if (!x) return acc.concat([current]);
-    return acc;
-  }, []);
-
-  return { ...watchData, sources: uniqueSources };
+  return { ...watchData, sources };
 };
 
 export const transformEra = async (
   base64Image: string,
   watch: WatchInfo,
   prefs: UserPreferences,
-  customScenario?: MarketingScenario
+  customScenario?: MarketingScenario,
+  skipWatermark: boolean = false
 ): Promise<string> => {
-  const ai = getAI();
-  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const env = customScenario?.environmentPrompt || watch.environmentDescription;
   const cloth = customScenario?.clothingPrompt || watch.clothingDescription;
-  
-  // Construct user persona string
-  const demographic = `${prefs.age ? prefs.age + ' year old ' : ''}${prefs.gender || 'person'}`;
   const location = prefs.country ? ` in ${prefs.country}` : '';
   const targetYear = prefs.customYear || watch.releaseYear;
   
-  // Enhanced prompt to strictly enforce year aesthetics
-  const prompt = `Transform this photo into a immersive time-portal to the year ${targetYear}. 
-  Keep the user's hand and the ${watch.modelName} watch exactly in place (do not modify the watch face). 
+  const prompt = `Transform this photo into a photo-realistic time-portal to the year ${targetYear}. 
+  Keep the user's hand and the ${watch.modelName} watch exactly in place. 
   
   INSTRUCTIONS:
   1. CLOTHING: Change the clothing on the wrist/arm to: ${cloth}. 
-     - CRITICAL: The fabric, cut, and style must be accurate to ${targetYear}. 
-     - If ${targetYear} is futuristic (e.g. 2077), use sci-fi technical fabrics, circuitry patterns, or cyberware.
-     
-  2. BACKGROUND: Completely replace the background environment. 
-     - Base Scene: ${env}${location}. 
-     - CRITICAL: Re-imagine this environment visually for the year ${targetYear}.
-     - If ${targetYear} > 2050: Use cyberpunk aesthetics, neon lights, holograms, flying traffic, high-tech architecture.
-     - If ${targetYear} < 1950: Use sepia tones, period architecture, vintage cars, steam/smoke.
-     - If ${targetYear} is contemporary: Use modern styling.
-     
-  The final image should look like a professional cinematic still from a movie set in ${targetYear}. 
-  Maintain high realism, correct lighting, and seamless blending between the hand and the new world.`;
+  2. BACKGROUND: Completely replace the background environment with: ${env}${location}. 
+  
+  Maintain high realism and seamless blending.`;
 
   const response = await ai.models.generateContent({
     model: GENERATION_MODEL,
@@ -156,77 +193,32 @@ export const transformEra = async (
         { text: prompt },
       ],
     },
+    config: {
+      imageConfig: {
+        aspectRatio: "1:1"
+      }
+    }
   });
 
   for (const part of response.candidates[0].content.parts) {
     if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+      const rawBase64 = `data:image/png;base64,${part.inlineData.data}`;
+      if (skipWatermark) return rawBase64;
+      return await applyWatermark(rawBase64);
     }
   }
   
   throw new Error("Failed to generate transformed image");
 };
 
-export const generatePanorama = async (
-  watch: WatchInfo, 
-  prefs: UserPreferences, 
-  customScenario?: MarketingScenario
-): Promise<string> => {
-  const ai = getAI();
-  
-  const env = customScenario?.environmentPrompt || watch.environmentDescription;
-  const location = prefs.country ? ` in ${prefs.country}` : '';
-  const targetYear = prefs.customYear || watch.releaseYear;
-  
-  const prompt = `Generate a wide angle panoramic environmental shot (16:9 aspect ratio).
-  Location: ${env}${location}.
-  Time Period: ${targetYear}.
-  
-  VISUAL DIRECTIVE:
-  Render this environment strictly as it would appear in the year ${targetYear}.
-  - If the year is futuristic (e.g. 2077+), strictly enforce a Cyberpunk/Sci-Fi aesthetic: Neon signs, holograms, flying cars, mega-structures, dark rainy atmosphere or high-tech utopia.
-  - If historical, ensure total period accuracy.
-  
-  Style: Cinematic, photorealistic, immersive, high detail. 
-  Perspective: Eye-level looking out at the horizon. Wide field of view.`;
-
-  const response = await ai.models.generateContent({
-    model: GENERATION_MODEL,
-    contents: {
-      parts: [{ text: prompt }],
-    },
-    config: {
-      imageConfig: { aspectRatio: "16:9" }
-    }
-  });
-
-  for (const part of response.candidates[0].content.parts) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
-    }
-  }
-  
-  throw new Error("Failed to generate panorama");
-};
-
 export const analyzeMarketValue = async (modelName: string): Promise<MarketAnalysis> => {
-  const ai = getAI();
-  const currentYear = new Date().getFullYear();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const response = await ai.models.generateContent({
-    model: IDENTIFICATION_MODEL, 
+    model: RESEARCH_MODEL, 
     contents: {
       parts: [{
-        text: `Act as a professional vintage watch market analyst (MCP Agent). 
-        Perform a search on eBay sold listings, Chrono24, and auction results for: "${modelName}".
-        
-        1. Determine the current market price range (min and max) in USD.
-        2. Analyze the price trend over the last 3 years (${currentYear - 3}, ${currentYear - 2}, ${currentYear - 1}). Estimate the average market value for each of those years based on historical knowledge and search results.
-        3. Determine the market sentiment (Bullish, Bearish, or Stable).
-        4. Give it an investment rating (S, A, B, C).
-        5. Provide a short, 1-sentence insight about its collectability.
-        
-        Return ONLY valid JSON matching this schema.`
+        text: `Analyze market trends for: "${modelName}". Return JSON matching schema.`
       }]
     },
     config: {
@@ -261,27 +253,19 @@ export const analyzeMarketValue = async (modelName: string): Promise<MarketAnaly
   return JSON.parse(response.text) as MarketAnalysis;
 };
 
+/**
+ * Searches for historical vintage advertisements for the specified watch artifact
+ */
 export const findVintageAds = async (watch: WatchInfo): Promise<VintageAd[]> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const response = await ai.models.generateContent({
-    model: IDENTIFICATION_MODEL,
+    model: RESEARCH_MODEL,
     contents: {
       parts: [{
-        text: `Act as a specialized horological archivist. Find 3 distinct, real-world vintage advertising campaigns specifically for the exact watch model: "${watch.modelName}" released around ${watch.releaseYear}.
-
-        CRITICAL INSTRUCTIONS:
-        1. STRICTLY MATCH THE MODEL: If the watch is a specific reference (e.g. "Seiko 6139 Pogue", "Omega Speedmaster 105.012"), do not return generic brand ads. Return ads specifically for that model reference or specific line.
-        2. IGNORE GENERIC ADS: If you cannot find a specific ad for this exact model, find the closest specific model variant from that year, but strictly avoid modern ads or generic brand awareness campaigns.
-        3. ERA ACCURACY: Focus on the marketing messaging and visual style from ${watch.releaseYear} or the immediate years following.
-        
-        For each ad, provide:
-        1. The main headline or slogan used (e.g. "The Watch That Went To The Moon").
-        2. A detailed description of the visual imagery (layout, people, background, specific watch angle).
-        3. The approximate year it ran.
-        4. A highly detailed image generation prompt to digitally recreate this specific ad poster. Include details about film grain, typography style, and color grading of that specific year.
-        
-        Return as JSON.`
+        text: `Find information about real historical vintage advertisements and marketing campaigns for the ${watch.modelName} watch from approximately ${watch.releaseYear}. 
+        Return a list of 3-4 significant campaigns. 
+        For each, provide a catchy headline that captures the era's vibe, the specific year, and a detailed visual description of what the original print advertisement looked like.`
       }]
     },
     config: {
@@ -294,28 +278,44 @@ export const findVintageAds = async (watch: WatchInfo): Promise<VintageAd[]> => 
           properties: {
             id: { type: Type.STRING },
             headline: { type: Type.STRING },
-            description: { type: Type.STRING },
             year: { type: Type.STRING },
-            visualPrompt: { type: Type.STRING }
+            description: { type: Type.STRING }
           },
-          required: ["id", "headline", "description", "year", "visualPrompt"]
+          required: ["id", "headline", "year", "description"]
         }
       }
     }
   });
 
-  return JSON.parse(response.text) as VintageAd[];
+  const ads: VintageAd[] = JSON.parse(response.text);
+  
+  // Extract grounding sources to satisfy guideline requirements
+  const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+  if (groundingChunks) {
+    const webSources: Source[] = groundingChunks
+      .filter((chunk: any) => chunk.web && chunk.web.uri)
+      .map((chunk: any) => ({
+        title: chunk.web.title || 'Historical Reference',
+        url: chunk.web.uri
+      }));
+    
+    // Attach sources to ads for reference
+    ads.forEach(ad => ad.sources = webSources);
+  }
+
+  return ads;
 };
 
-export const restoreAdImage = async (ad: VintageAd, watchModel: string): Promise<string> => {
-  const ai = getAI();
+/**
+ * Restores a vintage ad image using the image generation model based on a descriptive prompt
+ */
+export const restoreAdImage = async (ad: VintageAd, modelName: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `Create a high-fidelity vintage advertisement poster for the ${watchModel}.
-  Year: ${ad.year}.
-  Headline style: "${ad.headline}".
-  Visuals: ${ad.visualPrompt}.
-  Style: Authentic ${ad.year} magazine print advertisement, slightly worn paper texture, retro typography, nostalgic color grading.
-  Ensure the watch is featured prominently and accurately matches the era's aesthetic.`;
+  const prompt = `Recreate an authentic, high-quality vintage print advertisement for the ${modelName} watch as it would have appeared in a magazine in ${ad.year}. 
+  The advertisement headline is: "${ad.headline}". 
+  Visual Content: ${ad.description}.
+  Ensure the style perfectly matches the graphic design and photography trends of ${ad.year}. Use era-appropriate fonts, color grading, and paper texture. The image should look like a professional, well-preserved historical artifact. No modern digital elements.`;
 
   const response = await ai.models.generateContent({
     model: GENERATION_MODEL,
@@ -323,15 +323,19 @@ export const restoreAdImage = async (ad: VintageAd, watchModel: string): Promise
       parts: [{ text: prompt }],
     },
     config: {
-      imageConfig: { aspectRatio: "3:4" }
+      imageConfig: {
+        aspectRatio: "3:4"
+      }
     }
   });
 
   for (const part of response.candidates[0].content.parts) {
     if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+      const rawBase64 = `data:image/png;base64,${part.inlineData.data}`;
+      // Apply app-wide branding watermark
+      return await applyWatermark(rawBase64);
     }
   }
   
-  throw new Error("Failed to restore ad image");
+  throw new Error("Neural Restoration failed to produce an image artifact.");
 };

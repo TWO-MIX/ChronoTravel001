@@ -73,7 +73,7 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
         
         <h2 className="text-4xl mb-3 text-white tracking-wider font-logo">ChronoPortal</h2>
         <p className="text-gray-400 mb-10 max-w-xs leading-relaxed text-sm">
-          Activate temporal sensors to identify artifacts and open a window to the past.
+          Activate temporal sensors to identify artifacts and open a window to the past or future.
         </p>
 
         {error && (
@@ -132,7 +132,8 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
 
       <canvas ref={canvasRef} className="hidden" />
 
-      <div className="absolute bottom-12 left-0 right-0 flex justify-center px-6">
+      {/* Capture Button shifted up significantly (from bottom-12 to bottom-28) to satisfy the 5% shift and clear system bars */}
+      <div className="absolute bottom-28 left-0 right-0 flex justify-center px-6">
         <button
           onClick={captureFrame}
           disabled={isProcessing}

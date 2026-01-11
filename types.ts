@@ -29,13 +29,20 @@ export interface MarketAnalysis {
   insight: string;
 }
 
+export interface ForensicPoint {
+  feature: string;
+  observation: string;
+  status: 'Confirmed' | 'Discrepancy' | 'Variation';
+  details: string;
+}
+
 export interface VintageAd {
   id: string;
   headline: string;
-  description: string;
   year: string;
-  visualPrompt: string; // Internal use for generation
-  imageUrl?: string; // Populated after generation
+  description: string;
+  imageUrl?: string;
+  sources?: Source[];
 }
 
 export interface WatchInfo {
@@ -46,20 +53,16 @@ export interface WatchInfo {
   environmentDescription: string;
   historicalFunFact: string;
   marketingScenarios: MarketingScenario[];
+  forensicVerification: ForensicPoint[];
   sources?: Source[];
 }
 
 export enum AppState {
   IDLE = 'IDLE',
-  SCANNING = 'SCANNING',
   IDENTIFYING = 'IDENTIFYING',
   TRANSFORMING = 'TRANSFORMING',
   RESULT = 'RESULT',
-  LIVE = 'LIVE',
-  GENERATING_WORLD = 'GENERATING_WORLD',
-  IMMERSIVE = 'IMMERSIVE',
   INVESTOR = 'INVESTOR',
-  ADS = 'ADS',
   ERROR = 'ERROR'
 }
 

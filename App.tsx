@@ -3,9 +3,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, WatchInfo, MarketingScenario, UserPreferences } from './types';
 import Camera from './components/Camera';
 import ResultView from './components/ResultView';
-import LiveAR from './components/LiveAR';
 import InvestorView from './components/InvestorView';
-import VintageAdsView from './components/VintageAdsView';
 import { identifyWatch, transformEra } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -15,12 +13,9 @@ const App: React.FC = () => {
   const [watchInfo, setWatchInfo] = useState<WatchInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPulsing, setIsPulsing] = useState(false);
-  const [showQR, setShowQR] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState('');
   const [isCompatible, setIsCompatible] = useState(true);
   const [envError, setEnvError] = useState<string | null>(null);
-  const [selectedScenario, setSelectedScenario] = useState<MarketingScenario | undefined>(undefined);
   const [isReTransmuting, setIsReTransmuting] = useState(false);
 
   // User Preferences State
@@ -34,8 +29,6 @@ const App: React.FC = () => {
   const hasActivePersona = Boolean(userPrefs.gender || userPrefs.age || userPrefs.country || userPrefs.customYear);
 
   useEffect(() => {
-    setCurrentUrl(window.location.href);
-    
     const isSecure = window.isSecureContext;
     const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
     const isInApp = /FBAN|FBAV|Instagram|LinkedIn|Discord|Twitter/i.test(ua);
@@ -45,7 +38,7 @@ const App: React.FC = () => {
       setEnvError("Security breach detected: This application requires an HTTPS connection to access temporal sensors (camera).");
     } else if (isInApp) {
       setIsCompatible(false);
-      setEnvError("In-App Browser detected. These browsers restrict camera/microphone access. Please tap the '...' or share icon and select 'Open in Safari' or 'Open in Chrome'.");
+      setEnvError("In-App Browser detected. These browsers restrict camera access. Please open in Safari or Chrome directly.");
     }
   }, []);
 
@@ -56,7 +49,6 @@ const App: React.FC = () => {
     setState(AppState.IDENTIFYING);
     setOriginalImage(`data:image/jpeg;base64,${base64}`);
     setErrorMessage(null);
-    setSelectedScenario(undefined);
 
     try {
       const info = await identifyWatch(base64);
@@ -78,11 +70,10 @@ const App: React.FC = () => {
     if (!originalImage || !watchInfo || isReTransmuting) return;
     
     setIsReTransmuting(true);
-    setSelectedScenario(scenario);
-    
     try {
       const base64 = originalImage.split(',')[1];
-      const result = await transformEra(base64, watchInfo, userPrefs, scenario);
+      // Skip watermark for the historical campaigns section under ResultView as requested
+      const result = await transformEra(base64, watchInfo, userPrefs, scenario, true);
       setTransformedImage(result);
     } catch (err) {
       console.error("Scenario transformation failed", err);
@@ -97,7 +88,6 @@ const App: React.FC = () => {
     setTransformedImage(null);
     setWatchInfo(null);
     setErrorMessage(null);
-    setSelectedScenario(undefined);
   };
 
   const handlePrefChange = (key: keyof UserPreferences, value: string) => {
@@ -112,9 +102,6 @@ const App: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold mb-4 uppercase tracking-[0.2em] text-white">System Restriction</h2>
         <p className="text-gray-400 mb-8 mono text-sm leading-relaxed">{envError}</p>
-        <div className="glass p-4 rounded-xl text-xs mono text-blue-400 border-blue-500/20">
-          REQUIRED: Safari (iOS) or Chrome (Android)
-        </div>
       </div>
     );
   }
@@ -129,7 +116,7 @@ const App: React.FC = () => {
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight uppercase font-logo text-blue-400">ChronoPortal</h1>
-            <p className="text-[10px] text-gray-400 mono leading-none font-bold">BUILD: CHRONOPORTALSUBMIT</p>
+            <p className="text-[10px] text-gray-400 mono leading-none font-bold">FLASH ENGINE ACTIVE</p>
           </div>
         </div>
         <div className="flex items-center gap-3 mt-2">
@@ -143,95 +130,12 @@ const App: React.FC = () => {
                 <div className="absolute top-0 right-0 w-2 h-2 bg-purple-500 rounded-full -mr-1 -mt-1 border border-black shadow-sm"></div>
               )}
             </button>
-            <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-[10px] mono text-gray-500 font-bold uppercase tracking-widest">Active</span>
-            </div>
         </div>
       </header>
 
-      {/* Settings Modal - Increased Z-Index and contrast */}
-      {showSettings && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-xl">
-          <div className="glass p-6 rounded-3xl w-full max-w-sm border-blue-500/30 shadow-2xl shadow-blue-900/20">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold uppercase tracking-widest text-white">Persona Protocol</h3>
-              <button 
-                onClick={() => setShowSettings(false)}
-                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-white/10"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            
-            <div className="space-y-4 mb-8">
-              <div className="space-y-1">
-                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Identity (Gender)</label>
-                <select 
-                  value={userPrefs.gender}
-                  onChange={(e) => handlePrefChange('gender', e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none appearance-none"
-                >
-                  <option value="">Any / Unspecified</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Non-binary">Non-binary</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Chronological Age</label>
-                <input 
-                  type="number"
-                  placeholder="e.g. 28"
-                  value={userPrefs.age}
-                  onChange={(e) => handlePrefChange('age', e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Geographic Origin</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. Japan, New York, London"
-                  value={userPrefs.country}
-                  onChange={(e) => handlePrefChange('country', e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Temporal Override (Year)</label>
-                <input 
-                  type="text"
-                  placeholder="e.g. 1920, 2077 (Default: Watch Era)"
-                  value={userPrefs.customYear || ''}
-                  onChange={(e) => handlePrefChange('customYear', e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
-                />
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setShowSettings(false)}
-              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-transform"
-            >
-              Confirm Parameters
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Main Area */}
       <main className="flex-1 relative overflow-hidden">
-        {state === AppState.LIVE && watchInfo ? (
-          <LiveAR 
-            watch={watchInfo} 
-            selectedScenario={selectedScenario} 
-            onExit={() => setState(AppState.RESULT)} 
-          />
-        ) : (state === AppState.IDLE || state === AppState.IDENTIFYING || state === AppState.TRANSFORMING) ? (
+        {(state === AppState.IDLE || state === AppState.IDENTIFYING || state === AppState.TRANSFORMING) ? (
           <div className="h-full relative">
             <Camera 
               onCapture={handleCapture} 
@@ -255,8 +159,8 @@ const App: React.FC = () => {
                   </h3>
                   <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full"></div>
                   <p className="text-gray-400 text-sm mono font-medium max-w-[200px] mx-auto">
-                    {state === AppState.IDENTIFYING ? 'Cross-referencing global horological datasets...' : 
-                     `Projecting ${userPrefs.customYear || watchInfo?.releaseYear || 'temporal'} environment layers...`
+                    {state === AppState.IDENTIFYING ? 'Cross-referencing global horological datasets...this might take up to 15s' : 
+                     `Travelling through time via Gemini Flash...almost there...`
                     }
                   </p>
                 </div>
@@ -272,18 +176,12 @@ const App: React.FC = () => {
               onReset={reset}
               onSelectScenario={handleSelectScenario}
               onShowInvestor={() => setState(AppState.INVESTOR)}
-              onShowAds={() => setState(AppState.ADS)}
               isTransmuting={isReTransmuting}
               userPrefs={userPrefs}
             />
           </div>
         ) : state === AppState.INVESTOR && watchInfo ? (
            <InvestorView 
-             watch={watchInfo}
-             onClose={() => setState(AppState.RESULT)}
-           />
-        ) : state === AppState.ADS && watchInfo ? (
-           <VintageAdsView
              watch={watchInfo}
              onClose={() => setState(AppState.RESULT)}
            />
@@ -304,11 +202,70 @@ const App: React.FC = () => {
         ) : null}
       </main>
 
-      {state === AppState.IDLE && (
-        <div className="absolute bottom-[140px] left-0 right-0 px-8 text-center pointer-events-none z-10">
-          <p className="text-white/60 text-xs font-bold uppercase tracking-[0.3em] drop-shadow-lg">
-            Align Artifact <span className="text-blue-500">&bull;</span> Center Dial
-          </p>
+      {showSettings && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-xl">
+          <div className="glass p-6 rounded-3xl w-full max-w-sm border-blue-500/30 shadow-2xl shadow-blue-900/20">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold uppercase tracking-widest text-white">Persona Protocol</h3>
+              <button 
+                onClick={() => setShowSettings(false)}
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-white/10"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="space-y-4 mb-8">
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Identity (Gender)</label>
+                <select 
+                  value={userPrefs.gender}
+                  onChange={(e) => handlePrefChange('gender', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none appearance-none"
+                >
+                  <option value="">Any / Unspecified</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Chronological Age</label>
+                <input 
+                  type="number"
+                  placeholder="e.g. 28"
+                  value={userPrefs.age}
+                  onChange={(e) => handlePrefChange('age', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Geographic Origin</label>
+                <input 
+                  type="text"
+                  placeholder="e.g. Switzerland, Tokyo"
+                  value={userPrefs.country}
+                  onChange={(e) => handlePrefChange('country', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] mono text-blue-400 font-bold uppercase">Temporal Override (Year)</label>
+                <input 
+                  type="text"
+                  placeholder="e.g. 1920, 2077 (Default: Watch Era)"
+                  value={userPrefs.customYear || ''}
+                  onChange={(e) => handlePrefChange('customYear', e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-600"
+                />
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowSettings(false)}
+              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-transform"
+            >
+              Confirm Parameters
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -2,7 +2,6 @@
   "name": "ChronoPortal",
   "description": "Scan your vintage watch to transform your wrist and surroundings into a historical era using Gemini-powered visual editing.",
   "requestFramePermissions": [
-    "camera",
-    "microphone"
+    "camera"
   ]
 }
