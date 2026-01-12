@@ -36,13 +36,10 @@ export interface ForensicPoint {
   details: string;
 }
 
-export interface VintageAd {
-  id: string;
-  headline: string;
-  year: string;
-  description: string;
-  imageUrl?: string;
-  sources?: Source[];
+export interface MovieAssociation {
+  movieTitle: string;
+  characterName: string;
+  context: string;
 }
 
 export interface WatchInfo {
@@ -54,6 +51,7 @@ export interface WatchInfo {
   historicalFunFact: string;
   marketingScenarios: MarketingScenario[];
   forensicVerification: ForensicPoint[];
+  associatedMovies: MovieAssociation[];
   sources?: Source[];
 }
 
@@ -72,4 +70,13 @@ export interface HistoryItem {
   originalImage: string;
   transformedImage: string;
   watch: WatchInfo;
+}
+
+// Added for vintage advertisements feature
+export interface VintageAd {
+  id: string;
+  year: string;
+  headline: string;
+  description: string;
+  imageUrl?: string;
 }

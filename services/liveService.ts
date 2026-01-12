@@ -1,18 +1,18 @@
 
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
 export interface LiveSessionCallbacks {
   onTranscription: (text: string, isUser: boolean) => void;
   onAudioChunk: (base64Audio: string) => void;
   onInterrupted: () => void;
 }
 
-export const connectTemporalGuide = async (
+export const connectTemporalGuide = (
   eraInfo: string,
   callbacks: LiveSessionCallbacks
 ) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   const sessionPromise = ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     callbacks: {
