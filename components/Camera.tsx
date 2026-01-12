@@ -13,6 +13,10 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
   const [isActive, setIsActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  
+  // Zoom State
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomCapabilities, setZoomCapabilities] = useState<{ min: number; max: number; step: number } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -25,8 +29,34 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
   useEffect(() => {
     if (isActive && stream && videoRef.current) {
       videoRef.current.srcObject = stream;
+      
+      // Extract Zoom Capabilities
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && videoTrack.getCapabilities) {
+        const capabilities = videoTrack.getCapabilities() as any;
+        if (capabilities.zoom) {
+          setZoomCapabilities({
+            min: capabilities.zoom.min || 1,
+            max: capabilities.zoom.max || 10,
+            step: capabilities.zoom.step || 0.1
+          });
+          setZoomLevel(capabilities.zoom.min || 1);
+        }
+      }
     }
   }, [isActive, stream]);
+
+  // Apply Zoom Constraints
+  useEffect(() => {
+    if (stream) {
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && (videoTrack as any).applyConstraints && zoomCapabilities) {
+        videoTrack.applyConstraints({
+          advanced: [{ zoom: zoomLevel } as any]
+        }).catch(err => console.error("Zoom constraint failed:", err));
+      }
+    }
+  }, [zoomLevel, stream, zoomCapabilities]);
 
   // Simulate focus detection for HUD feedback
   useEffect(() => {
@@ -40,7 +70,11 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
     setError(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
         audio: false
       });
       setStream(mediaStream);
@@ -62,7 +96,7 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9); // High quality for dial identification
       const base64 = dataUrl.split(',')[1];
       onCapture(base64);
     }
@@ -112,25 +146,22 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
         className="w-full h-full object-cover"
       />
       
-      {/* Precision Reticle Overlay (The Hitbox) */}
+      {/* Precision Reticle Overlay */}
       <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
         <div className="relative">
-          {/* Main Hitbox Area */}
           <div className={`w-64 h-64 border-2 rounded-[2rem] transition-colors duration-500 relative ${isFocused ? 'border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.3)]' : 'border-white/20'}`}>
             <div className={`absolute -top-1 -left-1 w-10 h-10 border-t-4 border-l-4 rounded-tl-[2rem] transition-colors ${isFocused ? 'border-blue-400' : 'border-white/40'}`}></div>
             <div className={`absolute -top-1 -right-1 w-10 h-10 border-t-4 border-r-4 rounded-tr-[2rem] transition-colors ${isFocused ? 'border-blue-400' : 'border-white/40'}`}></div>
             <div className={`absolute -bottom-1 -left-1 w-10 h-10 border-b-4 border-l-4 rounded-bl-[2rem] transition-colors ${isFocused ? 'border-blue-400' : 'border-white/40'}`}></div>
             <div className={`absolute -bottom-1 -right-1 w-10 h-10 border-b-4 border-r-4 rounded-br-[2rem] transition-colors ${isFocused ? 'border-blue-400' : 'border-white/40'}`}></div>
             
-            {/* Inner Alignment HUD - Dial Circle */}
             <div className="absolute inset-0 flex items-center justify-center">
                <div className={`w-40 h-40 border-2 border-dashed rounded-full transition-all duration-700 ${isFocused ? 'border-blue-500/50 scale-100' : 'border-white/10 scale-90'}`}></div>
             </div>
 
-            {/* Micro-guide Crosshair */}
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
-               <div className="w-[1px] h-4 bg-white"></div>
-               <div className="w-4 h-[1px] bg-white absolute"></div>
+               <div className={`w-[1px] bg-white transition-all duration-300 ${zoomLevel > 1.5 ? 'h-8' : 'h-4'}`}></div>
+               <div className={`h-[1px] bg-white absolute transition-all duration-300 ${zoomLevel > 1.5 ? 'w-8' : 'w-4'}`}></div>
             </div>
 
             {!isProcessing && (
@@ -138,17 +169,13 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
             )}
           </div>
 
-          {/* Forensic Data Points */}
           {isFocused && (
             <div className="absolute -right-32 top-0 space-y-2">
-               <div className="glass px-2 py-1 rounded-md border-l-2 border-blue-500 animate-in slide-in-from-left">
-                  <p className="text-[8px] mono text-blue-400 font-bold uppercase">Alignment: High</p>
+               <div className="glass px-2 py-1 rounded-md border-l-2 border-blue-500">
+                  <p className="text-[8px] mono text-blue-400 font-bold uppercase">Mag: {zoomLevel.toFixed(1)}x</p>
                </div>
-               <div className="glass px-2 py-1 rounded-md border-l-2 border-blue-500 animate-in slide-in-from-left delay-75">
-                  <p className="text-[8px] mono text-blue-400 font-bold uppercase">Vector: Locked</p>
-               </div>
-               <div className="glass px-2 py-1 rounded-md border-l-2 border-blue-500 animate-in slide-in-from-left delay-150">
-                  <p className="text-[8px] mono text-blue-400 font-bold uppercase">Focus: Optimal</p>
+               <div className="glass px-2 py-1 rounded-md border-l-2 border-blue-500">
+                  <p className="text-[8px] mono text-blue-400 font-bold uppercase">Macro: Active</p>
                </div>
             </div>
           )}
@@ -156,24 +183,53 @@ const Camera: React.FC<CameraProps> = ({ onCapture, isProcessing }) => {
 
         <div className="mt-8 flex flex-col items-center gap-3">
            <div className="glass px-4 py-2 rounded-full flex items-center gap-3 border border-blue-500/20">
-              <i className={`fas ${isFocused ? 'fa-crosshairs text-blue-400 scale-110' : 'fa-camera text-white/50'} transition-all`}></i>
+              <i className={`fas ${zoomLevel > 1 ? 'fa-magnifying-glass-plus text-blue-400' : 'fa-crosshairs text-white/50'} transition-all`}></i>
               <p className="text-[10px] mono text-white font-bold uppercase tracking-[0.2em]">
-                {isFocused ? 'Position Secured' : 'Place Dial in Circle'}
+                {zoomLevel > 1 ? `Magnified ${zoomLevel.toFixed(1)}x` : 'Position Secured'}
               </p>
-           </div>
-           
-           <div className="flex gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${isFocused ? 'bg-blue-500 animate-pulse' : 'bg-white/20'}`}></div>
-              <div className={`w-1.5 h-1.5 rounded-full ${isFocused ? 'bg-blue-500 animate-pulse delay-75' : 'bg-white/20'}`}></div>
-              <div className={`w-1.5 h-1.5 rounded-full ${isFocused ? 'bg-blue-500 animate-pulse delay-150' : 'bg-white/20'}`}></div>
            </div>
         </div>
       </div>
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Capture Interaction */}
-      <div className="absolute bottom-28 left-0 right-0 flex justify-center px-6">
+      {/* Capture & Controls Container */}
+      <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center gap-8 px-6">
+        
+        {/* Zoom Tactical Slider */}
+        {zoomCapabilities && (
+          <div className="w-full max-w-[280px] space-y-3">
+            <div className="flex justify-between px-1 text-[8px] mono text-white/40 font-bold uppercase tracking-widest">
+              <span>1.0x</span>
+              <span>{(zoomCapabilities.max / 2).toFixed(1)}x</span>
+              <span>{zoomCapabilities.max.toFixed(1)}x</span>
+            </div>
+            <div className="relative h-10 flex items-center">
+              <input 
+                type="range"
+                min={zoomCapabilities.min}
+                max={zoomCapabilities.max}
+                step={zoomCapabilities.step}
+                value={zoomLevel}
+                onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
+                className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500 transition-all hover:bg-white/20"
+              />
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 pointer-events-none w-px h-3 bg-white/20" 
+                style={{ left: '0%' }}
+              ></div>
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 pointer-events-none w-px h-3 bg-white/20" 
+                style={{ left: '50%' }}
+              ></div>
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 pointer-events-none w-px h-3 bg-white/20" 
+                style={{ left: '100%' }}
+              ></div>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={captureFrame}
           disabled={isProcessing}

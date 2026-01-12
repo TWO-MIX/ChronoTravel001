@@ -4,6 +4,7 @@ import { WatchInfo, MarketingScenario, UserPreferences, ForensicPoint, MovieAsso
 
 interface ResultViewProps {
   originalImage: string;
+  blueprintImage: string;
   transformedImage: string;
   watch: WatchInfo;
   onReset: () => void;
@@ -18,6 +19,7 @@ interface ResultViewProps {
 
 const ResultView: React.FC<ResultViewProps> = ({ 
   transformedImage, 
+  blueprintImage,
   watch, 
   onReset, 
   onSelectScenario,
@@ -28,6 +30,7 @@ const ResultView: React.FC<ResultViewProps> = ({
   generationTime
 }) => {
   const [showForensics, setShowForensics] = useState(false);
+  const [showBlueprint, setShowBlueprint] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<MarketingScenario | null>(null);
   const [selectedMovie, setSelectedMovie] = useState<MovieAssociation | null>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -42,11 +45,12 @@ const ResultView: React.FC<ResultViewProps> = ({
   };
 
   const handleShare = async () => {
-    if (!transformedImage || isSharing) return;
+    const imageToShare = showBlueprint ? blueprintImage : transformedImage;
+    if (!imageToShare || isSharing) return;
     setIsSharing(true);
 
     try {
-      const blob = await (await fetch(transformedImage)).blob();
+      const blob = await (await fetch(imageToShare)).blob();
       const file = new File([blob], `chrono-${watch.modelName.replace(/\s+/g, '-').toLowerCase()}.png`, { type: 'image/png' });
       
       const shareData = {
@@ -60,7 +64,7 @@ const ResultView: React.FC<ResultViewProps> = ({
       } else {
         // Fallback: Download the image
         const link = document.createElement('a');
-        link.href = transformedImage;
+        link.href = imageToShare;
         link.download = `chronoportal-${watch.releaseYear}.png`;
         link.click();
       }
@@ -74,11 +78,34 @@ const ResultView: React.FC<ResultViewProps> = ({
   return (
     <div className="flex flex-col h-full bg-[#050505] overflow-y-auto pb-safe">
       {/* Primary Visual Artifact - 9:16 aspect ratio */}
-      <div className="relative w-full aspect-[9/16] shrink-0 bg-zinc-900">
-        <img src={transformedImage} className={`w-full h-full object-cover shadow-2xl transition-all duration-700 ${isTransmuting ? 'opacity-40 grayscale blur-sm' : 'opacity-100'}`} />
+      <div className="relative w-full aspect-[9/16] shrink-0 bg-zinc-900 overflow-hidden">
+        <img 
+            src={showBlueprint ? blueprintImage : transformedImage} 
+            className={`w-full h-full object-cover shadow-2xl transition-all duration-700 ${isTransmuting ? 'opacity-40 grayscale blur-sm' : 'opacity-100'} ${showBlueprint ? 'contrast-125 brightness-110' : ''}`} 
+        />
         
+        {showBlueprint && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-0 scan-line opacity-30"></div>
+            <div className="absolute inset-0 border-[20px] border-blue-500/10 pointer-events-none"></div>
+            {/* Structural Markers */}
+            <div className="absolute top-1/4 left-1/4 w-4 h-4 border-t border-l border-blue-400/50"></div>
+            <div className="absolute top-1/4 right-1/4 w-4 h-4 border-t border-r border-blue-400/50"></div>
+            <div className="absolute bottom-1/4 left-1/4 w-4 h-4 border-b border-l border-blue-400/50"></div>
+            <div className="absolute bottom-1/4 right-1/4 w-4 h-4 border-b border-r border-blue-400/50"></div>
+            
+            <div className="absolute bottom-20 left-4 space-y-1">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                    <span className="text-[8px] mono text-blue-400 font-bold uppercase tracking-widest">Neural Link Active</span>
+                </div>
+                <div className="text-[10px] mono text-blue-400/60 uppercase tracking-tighter">Vector Precision: Neural-CLIP Engine</div>
+            </div>
+          </div>
+        )}
+
         {isTransmuting && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/40 backdrop-blur-sm">
             <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-[10px] mono text-blue-400 font-bold uppercase tracking-[0.2em] animate-pulse">Syncing Reality...</p>
           </div>
@@ -91,6 +118,14 @@ const ResultView: React.FC<ResultViewProps> = ({
         </div>
         
         <div className="absolute top-4 right-4 flex gap-2">
+          <button 
+            onClick={() => setShowBlueprint(!showBlueprint)}
+            disabled={isTransmuting}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 ${showBlueprint ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/50' : 'glass text-white'}`}
+            title="Toggle Neural Blueprint"
+          >
+            <i className={`fas ${showBlueprint ? 'fa-microscope' : 'fa-vector-square'}`}></i>
+          </button>
           <button 
             onClick={handleShare}
             disabled={isTransmuting || isSharing}
@@ -110,8 +145,8 @@ const ResultView: React.FC<ResultViewProps> = ({
         </div>
 
         <div className="absolute bottom-4 left-4">
-           <div className="glass px-3 py-1 rounded-full text-[10px] mono text-blue-400 font-bold uppercase tracking-widest border border-blue-500/20 shadow-lg shadow-blue-500/10">
-              Reality Verified
+           <div className={`glass px-3 py-1 rounded-full text-[10px] mono font-bold uppercase tracking-widest border shadow-lg transition-colors ${showBlueprint ? 'text-blue-400 border-blue-500/50 shadow-blue-500/20' : 'text-blue-400 border-blue-500/20 shadow-blue-500/10'}`}>
+              {showBlueprint ? 'Neural Analysis' : 'Reality Verified'}
            </div>
         </div>
       </div>

@@ -9,6 +9,7 @@ import { identifyWatch, transformEra, vectorizeImage } from './services/geminiSe
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(AppState.IDLE);
   const [originalImage, setOriginalImage] = useState<string | null>(null);
+  const [blueprintImage, setBlueprintImage] = useState<string | null>(null);
   const [transformedImage, setTransformedImage] = useState<string | null>(null);
   const [watchInfo, setWatchInfo] = useState<WatchInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,6 +68,7 @@ const App: React.FC = () => {
     try {
       // Step 1: Pre-process image for structural blueprint matching
       const blueprintBase64 = await vectorizeImage(base64);
+      setBlueprintImage(`data:image/jpeg;base64,${blueprintBase64}`);
       
       // Step 2: Use both original and blueprint for forensic ID
       const info = await identifyWatch(base64, blueprintBase64);
@@ -153,6 +155,7 @@ const App: React.FC = () => {
   const reset = () => {
     setState(AppState.IDLE);
     setOriginalImage(null);
+    setBlueprintImage(null);
     setTransformedImage(null);
     setWatchInfo(null);
     setErrorMessage(null);
@@ -219,15 +222,16 @@ const App: React.FC = () => {
                   </h3>
                   <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full"></div>
                   <p className="text-gray-400 text-sm mono font-medium max-w-[200px] mx-auto uppercase tracking-widest leading-relaxed">
-                    {state === AppState.IDENTIFYING ? 'Identifying Timepiece via Gemini 3 Pro...' : 'Opening Temporal Corridor...'}
+                    {state === AppState.IDENTIFYING ? 'Identifying Timepiece via Gemini 3 Flash...' : 'Opening Temporal Corridor...'}
                   </p>
                 </div>
               </div>
             )}
           </div>
-        ) : state === AppState.RESULT && watchInfo && transformedImage && originalImage ? (
+        ) : state === AppState.RESULT && watchInfo && transformedImage && originalImage && blueprintImage ? (
           <ResultView 
             originalImage={originalImage}
+            blueprintImage={blueprintImage}
             transformedImage={transformedImage}
             watch={watchInfo}
             onReset={reset}
@@ -260,6 +264,17 @@ const App: React.FC = () => {
               <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400"><i className="fas fa-times"></i></button>
             </div>
             <div className="space-y-4 mb-8">
+                <select 
+                  value={userPrefs.gender} 
+                  className="w-full bg-black/50 border border-white/10 p-3 text-white rounded-xl appearance-none"
+                  onChange={(e) => setUserPrefs({...userPrefs, gender: e.target.value})}
+                >
+                  <option value="" disabled>Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
                 <input type="number" placeholder="Age" value={userPrefs.age} className="w-full bg-black/50 border border-white/10 p-3 text-white rounded-xl" onChange={(e) => setUserPrefs({...userPrefs, age: e.target.value})} />
                 <input type="text" placeholder="Country" value={userPrefs.country} className="w-full bg-black/50 border border-white/10 p-3 text-white rounded-xl" onChange={(e) => setUserPrefs({...userPrefs, country: e.target.value})} />
                 <input type="text" placeholder="Year Override (Optional)" value={userPrefs.customYear || ''} className="w-full bg-black/50 border border-white/10 p-3 text-white rounded-xl" onChange={(e) => setUserPrefs({...userPrefs, customYear: e.target.value})} />

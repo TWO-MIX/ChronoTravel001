@@ -1,50 +1,48 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { WatchInfo, Source, MarketingScenario, UserPreferences, MarketAnalysis, VintageAd } from "../types";
+import { WatchInfo, Source, MarketingScenario, UserPreferences, MarketAnalysis } from "../types";
 
 // --- API PRESETS ---
-// Switched to Gemini 3 Flash for all identification and research tasks as per user constraint.
 const IDENTIFICATION_MODEL = 'gemini-3-flash-preview'; 
 const RESEARCH_MODEL = 'gemini-3-flash-preview'; 
 const GENERATION_MODEL = 'gemini-2.5-flash-image'; 
 
 /**
- * Creates a high-contrast "Blueprint" or "Vectorized" version of the image.
- * This assists the AI in identifying structural features (bezel markings, indices, hand shapes)
- * by stripping away noise, reflections, and complex lighting, matching technical drawings.
+ * Utilizes Gemini 2.5 Flash Image to generate a high-fidelity, technical 
+ * "Neural Blueprint" of the watch. This creates an uncanny, schematic-style
+ * representation that assists in forensic identification and visualization.
  */
 export const vectorizeImage = async (base64Data: string): Promise<string> => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return resolve(base64Data);
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  const prompt = `Create a high-fidelity technical "Neural Blueprint" of the watch in this photo. 
+  STYLE: 3D wireframe schematic, holographic technical drawing.
+  PALETTE: Glowing cyan and electric blue lines on a deep navy technical background.
+  DETAILS: Include exploded-view gear components floating around the watch, geometric callouts, and vector line annotations.
+  CONSTRAINT: The physical dimensions, dial layout, and lug geometry of the watch must remain 100% accurate to the original photo. Do not hallucinate a different watch model.
+  MOOD: Uncanny, forensic, highly investigative.`;
 
-      canvas.width = img.width;
-      canvas.height = img.height;
-      
-      // Step 1: Draw grayscale high-contrast base to isolate geometry
-      ctx.filter = 'grayscale(100%) contrast(400%) brightness(110%)';
-      ctx.drawImage(img, 0, 0);
-
-      // Step 2: Edge detection overlay (simulating technical schematic tracing)
-      ctx.globalCompositeOperation = 'difference';
-      ctx.drawImage(img, 1, 1); 
-      
-      // Final Pass: Blueprint aesthetic for forensic analysis
-      const finalCanvas = document.createElement('canvas');
-      const finalCtx = finalCanvas.getContext('2d');
-      if (!finalCtx) return resolve(base64Data);
-      finalCanvas.width = img.width;
-      finalCanvas.height = img.height;
-      finalCtx.filter = 'invert(100%) contrast(150%) brightness(120%)';
-      finalCtx.drawImage(canvas, 0, 0);
-      
-      resolve(finalCanvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
-    };
-    img.src = `data:image/jpeg;base64,${base64Data}`;
+  const response = await ai.models.generateContent({
+    model: GENERATION_MODEL,
+    contents: [{
+      parts: [
+        { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+        { text: prompt },
+      ],
+    }],
+    config: { imageConfig: { aspectRatio: "9:16" } }
   });
+
+  if (response.candidates?.[0]?.content?.parts) {
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        return part.inlineData.data;
+      }
+    }
+  }
+  
+  // Fallback to a simple high-contrast filter if generation fails
+  return base64Data; 
 };
 
 const applyWatermark = async (base64Data: string): Promise<string> => {
@@ -102,22 +100,21 @@ export const identifyWatch = async (originalBase64: string, blueprintBase64: str
     model: IDENTIFICATION_MODEL,
     contents: [{
       parts: [
-        { text: "IMAGE A: PHOTOGRAPH" },
+        { text: "IMAGE A: PHOTOGRAPH (REALITY)" },
         { inlineData: { mimeType: 'image/jpeg', data: originalBase64 } },
-        { text: "IMAGE B: STRUCTURAL BLUEPRINT (VECTOR MAPPING)" },
+        { text: "IMAGE B: NEURAL BLUEPRINT (FORENSIC VECTOR ANALYSIS)" },
         { inlineData: { mimeType: 'image/jpeg', data: blueprintBase64 } },
         {
           text: `ACT AS A FORENSIC HOROLOGIST. Identify this watch using dual-stream technical verification.
           
-          PHASE 1: STRUCTURAL MATCHING
-          Examine IMAGE B specifically. Treat it as a technical schematic. Compare the hand-pinion center, lug geometry, crown guards, and bezel markers against technical watch manuals and patent drawings. 
-          Analyze the dial layout vectors (sub-dial spacing, date window position) against official blueprints.
+          PHASE 1: NEURAL VECTOR ANALYSIS
+          Examine IMAGE B specifically. Analyze the wireframe edges, lug angles, and bezel layout extracted by the neural engine. Compare these against technical watch manuals and movement blueprints.
           
-          PHASE 2: VISUAL VERIFICATION
-          Cross-reference with IMAGE A to verify branding, dial text (e.g., 'T SWISS T'), and material patina to narrow down the specific reference number.
+          PHASE 2: VISUAL AUTHENTICATION
+          Cross-reference with the high-resolution photograph (IMAGE A). Verify dial text, hallmark engravings, and handset patina.
           
           PHASE 3: DATABASE SEARCH
-          Search ${HOROLOGICAL_WHITELIST.join(", ")} to confirm the exact model and release year.
+          Search ${HOROLOGICAL_WHITELIST.join(", ")} to confirm the exact model, caliber, and release year.
           
           Return JSON format precisely.`
         },
@@ -193,7 +190,6 @@ export const identifyWatch = async (originalBase64: string, blueprintBase64: str
   return { ...watchData, sources };
 };
 
-// Fix: Completed the transformEra function to iterate through response parts and extract the generated image.
 export const transformEra = async (
   base64Image: string,
   watch: WatchInfo,
@@ -238,11 +234,6 @@ export const transformEra = async (
   throw new Error("No image generated by the temporal engine.");
 };
 
-// Fix: Added the missing analyzeMarketValue function required by InvestorView.tsx.
-/**
- * Analyzes the market value and collector sentiment for a specific watch model.
- * Uses Google Search grounding to fetch real-time and recent sales data.
- */
 export const analyzeMarketValue = async (modelName: string): Promise<MarketAnalysis> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
